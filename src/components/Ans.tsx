@@ -8,7 +8,7 @@ const Ans: React.FC = () => {
   const [score, setScore] = useState(0);
   const [completed, setCompleted] = useState<number[]>([]); 
   const [submitted, setSubmitted] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(600); // 10 mins
+  const [timeLeft, setTimeLeft] = useState(30); // 30 seconds for each question
   const [darkMode, setDarkMode] = useState(false); // Dark mode state
 
   // Track each question's filled state
@@ -33,7 +33,7 @@ const Ans: React.FC = () => {
   const handleRetest = () => {
     setScore(0);
     setCompleted([]);
-    setTimeLeft(600); // Reset timer to 10 minutes
+    setTimeLeft(30); // Reset timer to 30 seconds for the first question
     setCurrent(0); // Go back to the first question
     setFilledAnswers({});
     setSubmitted(false); // Reset the submitted flag
@@ -41,18 +41,28 @@ const Ans: React.FC = () => {
 
   useEffect(() => {
     if (submitted) return;
+
+    // Timer for the current question
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          setSubmitted(true);
-          return 0;
+          // If we are on the last question, submit the quiz automatically
+          if (current === questions.length - 1) {
+            handleSubmit();
+          } else {
+            // Auto-navigate to the next question when the timer ends
+            setCurrent((prevCurrent) => Math.min(prevCurrent + 1, questions.length - 1));
+            setTimeLeft(30); // Reset timer for the next question
+          }
+          return 30; // Reset timer after moving to the next question or submitting
         }
         return prev - 1;
       });
     }, 1000);
+
     return () => clearInterval(timer);
-  }, [submitted]);
+  }, [submitted, current]); // Re-run the effect when the current question changes
 
   const formatTime = (s: number) =>
     `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60)
@@ -64,6 +74,20 @@ const Ans: React.FC = () => {
     setDarkMode((prev) => !prev);
   };
 
+  // Check if all blanks are filled to enable "Next" button
+  const isNextButtonEnabled = filledAnswers[current]?.every((answer) => answer !== null);
+
+  const handleNext = () => {
+    if (current < questions.length - 1) {
+      setCurrent((prev) => prev + 1);
+      setTimeLeft(30); // Reset timer when moving to the next question
+    }
+  };
+
+  // Calculate the score out of 10
+  const maxScore = 10; // Total score out of 10
+  const totalQuestions = questions.length;
+  const normalizedScore = Math.min((score / totalQuestions) * maxScore, maxScore);
   return (
     <div
       className={`p-8 mt-10 mb-10 max-w-4xl mx-auto ${
@@ -71,14 +95,11 @@ const Ans: React.FC = () => {
       } rounded-lg shadow-lg`}
     >
       <div className="flex justify-between items-center mb-6">
-        {/* Title, Timer, and Dark Mode toggle in the same row */}
         <div className="flex items-center space-x-4">
-          {/* Timer with grey background and black text */}
           <div className={`bg-gray-200 px-6 py-3 rounded-lg text-xl font-semibold text-black`}>
             ⏱ {formatTime(timeLeft)}
           </div>
 
-          {/* Dark Mode toggle button */}
           <button
             onClick={toggleDarkMode}
             className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
@@ -95,8 +116,7 @@ const Ans: React.FC = () => {
           <h2 className="text-3xl font-semibold text-green-700 mb-4">🎉 Quiz Submitted!</h2>
           <p className="text-xl">
             Your Final Score:{" "}
-            <span className="font-bold text-green-700">{score}</span> /{" "}
-            {questions.reduce((acc, q) => acc + q.correctAnswer.length, 0)}
+            <span className="font-bold text-green-700">{Math.round(normalizedScore)}</span> / {maxScore}
           </p>
           <div className="mt-6">
             <button
@@ -121,17 +141,11 @@ const Ans: React.FC = () => {
           </div>
 
           <div className="flex justify-between items-center mt-8">
-            <button
-              onClick={() => setCurrent((prev) => prev - 1)}
-              disabled={current === 0}
-              className="bg-blue-600 text-white px-6 py-3 rounded-full text-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-all"
-            >
-              ⬅ Back
-            </button>
             {current < questions.length - 1 ? (
               <button
-                onClick={() => setCurrent((prev) => prev + 1)}
-                className="bg-blue-600 text-white px-6 py-3 rounded-full text-lg font-semibold hover:bg-blue-700 transition-all"
+                onClick={handleNext} // Navigate to the next question and reset timer
+                disabled={!isNextButtonEnabled} // Enable only when all blanks are filled
+                className="bg-blue-600 text-white px-6 py-3 rounded-full text-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-all"
               >
                 Next ➡
               </button>
